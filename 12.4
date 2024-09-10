@@ -1,0 +1,94 @@
+// PID Class for Speed Control
+class PID {
+  private:
+    float kp, ki, kd;         // PID constants
+    float setpoint;           // Desired speed
+    float last_error;         // Previous error for derivative calculation
+    float integral;           // Sum of errors for integral term
+    unsigned long last_time;  // Time for derivative calculation
+    
+  public:
+    PID(float p, float i, float d) : kp(p), ki(i), kd(d), last_error(0), integral(0), last_time(0) {}
+
+    // Set desired setpoint (target speed)
+    void setSetpoint(float sp) {
+      setpoint = sp;
+    }
+
+    // Calculate PID output
+    float compute(float current_value) {
+      unsigned long now = millis();
+      float time_change = (now - last_time) / 1000.0; // time change in seconds
+      float error = setpoint - current_value;
+      
+      // Proportional term
+      float p_term = kp * error;
+      
+      // Integral term
+      integral += error * time_change;
+      float i_term = ki * integral;
+      
+      // Derivative term
+      float d_term = 0;
+      if (time_change > 0) {
+        d_term = kd * (error - last_error) / time_change;
+      }
+      
+      // Save error and time for next computation
+      last_error = error;
+      last_time = now;
+      
+      // Return the PID output (combined P, I, D terms)
+      return p_term + i_term + d_term;
+    }
+};
+
+// Exponential Smoothing Filter
+class ExponentialSmoothing {
+  private:
+    float alpha;   // Smoothing factor (between 0 and 1)
+    float last_value; // Last smoothed value
+    
+  public:
+    ExponentialSmoothing(float a) : alpha(a), last_value(0) {}
+
+    // Apply filter to the input value
+    float smooth(float input) {
+      last_value = alpha * input + (1 - alpha) * last_value;
+      return last_value;
+    }
+};
+
+// Global Variables
+PID pid(2.0, 0.5, 1.0); // Initialize PID with Kp, Ki, Kd values
+ExponentialSmoothing filter(0.1); // Initialize filter with smoothing factor
+int motorPin = 9; // Motor PWM pin
+
+void setup() {
+  pinMode(motorPin, OUTPUT);
+  pid.setSetpoint(100); // Set desired motor speed
+}
+
+void loop() {
+  float current_speed = readMotorSpeed(); // Read actual motor speed (implement this function)
+  
+  // Get PID control output
+  float pid_output = pid.compute(current_speed);
+  
+  // Apply exponential smoothing for soft start
+  float smooth_output = filter.smooth(pid_output);
+  
+  // Constrain the output for motor control (PWM range 0-255)
+  smooth_output = constrain(smooth_output, 0, 255);
+  
+  // Set motor speed using smoothed output
+  analogWrite(motorPin, smooth_output);
+  
+  delay(50); // Short delay for loop timing
+}
+
+// Function to read motor speed (to be implemented based on your setup)
+float readMotorSpeed() {
+  // Example: return a mock speed (replace with actual sensor reading)
+  return analogRead(A0); // Assuming speed sensor connected to A0
+}
